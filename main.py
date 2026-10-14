@@ -1,3 +1,4 @@
+from persistencia_txt import salvar_contas_txt, carregar_contas_txt
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from hashlib import sha256
 from calendar import monthrange
@@ -70,12 +71,29 @@ def preparar_conta(conta):
     return conta
 
 
-contas.extend(
-    [
-        criar_conta("1001", "Ana", "11111111111", "ana@email.com", 1000.0, pin="1234"),
-        criar_conta("1002", "Bruno", "22222222222", "81999990000", 750.0, pin="4321"),
-    ]
-)
+def inicializar_contas():
+    try:
+        restauradas = carregar_contas_txt()
+    except (ValueError, KeyError, TypeError, OSError) as erro:
+        print(f"Erro ao carregar contas: {erro}")
+        raise SystemExit(1)
+    if restauradas is None:
+        contas.extend([
+            criar_conta("1001", "Ana", "11111111111", "ana@email.com", 1000.0, pin="1234"),
+            criar_conta("1002", "Bruno", "22222222222", "81999990000", 750.0, pin="4321"),
+        ])
+    else:
+        contas.extend(restauradas)
+        for conta in contas:
+            preparar_conta(conta)
+
+
+def persistir_contas():
+    try:
+        salvar_contas_txt(contas)
+    except (OSError, TypeError, ValueError) as erro:
+        print(f"ERRO: alterações não foram salvas: {erro}")
+        raise
 
 
 def normalizar_categoria(categoria):
@@ -867,6 +885,7 @@ def mostrar_fluxo(conta, periodo, referencia=None):
 
 
 def escolher(titulo, opcoes):
+    persistir_contas()
     print(f"\n=== {titulo} ===")
     for indice, descricao in opcoes:
         print(f"{indice} - {descricao}")
@@ -1279,11 +1298,13 @@ def menu_conta(conta):
             return
         if opcao in secoes:
             secoes[opcao](conta)
+            persistir_contas()
         else:
             print("Opcao invalida.")
 
 
 def main():
+    inicializar_contas()
     while True:
         print("\n=== Acesso ao ByteBank ===")
         print("1 - Entrar na conta")
@@ -1309,8 +1330,10 @@ def main():
                 print(erro)
                 continue
             conta = cadastrar_conta(nome, cpf, chave_pix, pin)
+            persistir_contas()
             print(f"Conta criada: {conta['numero']}. Entre com seu numero e PIN.")
         elif opcao == "0":
+            persistir_contas()
             print("Programa encerrado.")
             break
         else:
