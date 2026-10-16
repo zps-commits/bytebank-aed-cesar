@@ -1,4 +1,4 @@
-from math import isfinite
+from decimal import Decimal
 
 from cliente import Cliente
 
@@ -7,59 +7,75 @@ class Conta:
     def __init__(self, cliente, numero, saldo=0.0, limite=500.0):
         if not isinstance(cliente, Cliente):
             raise ValueError("Cliente invalido.")
-        if not self.__valor_valido(saldo) or saldo < 0:
+        if type(numero) not in (str, int):
+            raise ValueError("Numero da conta invalido.")
+        numero = str(numero).strip()
+        if not numero.isascii() or not numero.isdigit() or int(numero) <= 0:
+            raise ValueError("Numero da conta deve ser um inteiro positivo.")
+
+        saldo = self.__converter_valor(saldo)
+        limite = self.__converter_valor(limite)
+        if saldo is None:
             raise ValueError("Saldo inicial invalido.")
-        if not self.__valor_valido(limite) or limite <= 0:
+        if limite is None or limite <= 0:
             raise ValueError("Limite invalido.")
 
-        self.cliente = cliente
-        self.id_cliente = cliente.cpf
-        self.numero = str(numero)
-        self.__saldo = round(saldo, 2)
-        self.__limite = round(limite, 2)
-        if self.__limite <= 0:
-            raise ValueError("Limite deve ser de pelo menos um centavo.")
+        self.__cliente = cliente
+        self.numero = numero
+        self.__saldo = saldo
+        self.__limite = limite
+
+    @property
+    def cliente(self):
+        return self.__cliente
+
+    @property
+    def id_cliente(self):
+        return self.__cliente.cpf
 
     @staticmethod
-    def __valor_valido(valor):
-        return (
-            type(valor) in (int, float)
-            and isfinite(valor)
-            and abs(valor) <= 1_000_000_000_000
-        )
+    def __converter_valor(valor):
+        if type(valor) not in (int, float, Decimal):
+            return None
+        if isinstance(valor, Decimal) and not valor.is_finite():
+            return None
+        if not 0 <= valor <= 1_000_000_000_000:
+            return None
+        valor = Decimal(str(valor))
+        if valor != valor.quantize(Decimal("0.01")):
+            return None
+        return valor.quantize(Decimal("0.01"))
 
     def sacar(self, valor):
-        if not self.__valor_valido(valor) or valor <= 0:
+        valor = self.__converter_valor(valor)
+        if valor is None or valor <= 0:
             return False
-        valor = round(valor, 2)
-        if valor <= 0 or valor > self.__saldo or valor > self.__limite:
+        if valor > self.__saldo or valor > self.__limite:
             return False
 
-        self.__saldo = round(self.__saldo - valor, 2)
+        self.__saldo -= valor
         return True
 
     def depositar(self, valor):
-        if not self.__valor_valido(valor) or valor <= 0:
+        valor = self.__converter_valor(valor)
+        if valor is None or valor <= 0:
             return False
-        valor = round(valor, 2)
-        novo_saldo = round(self.__saldo + valor, 2)
-        if valor <= 0 or not self.__valor_valido(novo_saldo):
+        novo_saldo = self.__saldo + valor
+        if novo_saldo > 1_000_000_000_000:
             return False
 
         self.__saldo = novo_saldo
         return True
 
     def consultar_saldo(self):
-        return self.__saldo
+        return float(self.__saldo)
 
     def consultar_limite(self):
-        return self.__limite
+        return float(self.__limite)
 
     def aumentar_limite(self, novo_limite):
-        if not self.__valor_valido(novo_limite):
-            return False
-        novo_limite = round(novo_limite, 2)
-        if novo_limite <= self.__limite:
+        novo_limite = self.__converter_valor(novo_limite)
+        if novo_limite is None or novo_limite <= self.__limite:
             return False
 
         self.__limite = novo_limite
